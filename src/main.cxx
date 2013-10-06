@@ -28,7 +28,7 @@ namespace mn {
 using namespace std;
 using namespace expression;
 
-map<string, Expression*> features;
+vector<Expression*> features;
 map<string, int> policy;
 vector<Expression*> rootConcepts;
 vector<Expression*> rootRoles;
@@ -45,13 +45,23 @@ PreOps* preops;
 int denotationSize(0);
 int runCount(1);
 
+void get_all_states() {
+	for (unsigned i = 0; i < instances.size(); ++i) {
+		vector<State>* iStates = instances[i].GetStates();
+		for (unsigned j = 0; j < iStates->size(); ++j) {
+			allStates.push_back((*iStates)[j]);
+		}
+	}
+}
+
 void initialize_concepts() {
 	for (unsigned i = 0; i < allObjects.size(); ++i)
 		allObjectsIdx.push_back(i);
 }
 
 int get_obj_pos(string object) {
-	int pos = std::find(allObjects.begin(), allObjects.end(), object) - allObjects.begin();
+	int pos = std::find(allObjects.begin(), allObjects.end(), object)
+			- allObjects.begin();
 	if (pos >= allObjects.size()) {
 		cout << "ERR " << object << endl;
 		return -1;
@@ -112,7 +122,8 @@ void get_input() {
 							if (pos > -1)
 								conceptInterpretation.push_back(pos);
 						}
-						s.AddConceptInterpretation(cname, conceptInterpretation);
+						s.AddConceptInterpretation(cname,
+								conceptInterpretation);
 						conceptInterpretation.clear();
 					}
 				}
@@ -150,7 +161,8 @@ void get_input() {
 					}
 				}
 
-				if ((!fin.eof() && i < inst.GetNumActions() && getline(fin, line))) {
+				if ((!fin.eof() && i < inst.GetNumActions()
+						&& getline(fin, line))) {
 					istringstream iss(line);
 					getline(iss, field, ' ');
 					s.SetAction(field);
@@ -338,14 +350,20 @@ Expression* contruct_concept(string line) {
 
 	if (line[0] == '!') {
 		ex = new Not(contruct_concept(get_inner(line)), &allObjectsIdx, preops);
+		ex->SetPreops(preops);
+		ex->SimplifyDenotations();
 		rootConcepts.push_back(ex);
 	} else if (line[0] == '*') {
 		ex = new TransitiveClosure(contruct_concept(get_inner(line)));
-		//ex->SetRole(true);
+		ex->SetPreops(preops);
+		ex->SimplifyDenotations();
+		ex->SetRole(true);
 		rootRoles.push_back(ex);
 	} else if (line[0] == 'I') {
 		ex = new InverseRole(contruct_concept(get_inner(line)));
-		//ex->SetRole(true);
+		ex->SetPreops(preops);
+		ex->SimplifyDenotations();
+		ex->SetRole(true);
 		rootRoles.push_back(ex);
 //	} else if (line[0] == '^') {
 //		vector<string> strv = splitline(line);
@@ -353,11 +371,17 @@ Expression* contruct_concept(string line) {
 //		rootConcepts.push_back(ex);
 	} else if (line[0] == '.') {
 		vector<string> strv = splitline(line);
-		ex = new ValueRestriction(contruct_concept(strv[0]), contruct_concept(strv[1]), preops);
+		ex = new ValueRestriction(contruct_concept(strv[0]),
+				contruct_concept(strv[1]), preops);
+		ex->SetPreops(preops);
+		ex->SimplifyDenotations();
 		rootConcepts.push_back(ex);
 	} else if (line[0] == '=') {
 		vector<string> strv = splitline(line);
-		ex = new Equality(contruct_concept(strv[0]), contruct_concept(strv[1]), preops);
+		ex = new Equality(contruct_concept(strv[0]), contruct_concept(strv[1]),
+				preops);
+		ex->SetPreops(preops);
+		ex->SimplifyDenotations();
 		rootConcepts.push_back(ex);
 	}
 	return ex;
@@ -377,21 +401,34 @@ void read_policy() {
 				while (getline(iss, field, ' ')) {
 					if (i == 0) {
 						ConceptNode* c = new ConceptNode(field);
+						c->UpdateDenotations(instances, &allObjectsIdx);
+						c->SetPreops(preops);
+						c->SimplifyDenotations();
 						rootConcepts.push_back(c);
 						c = new ConceptNode(field);
 						c->IsGoal(true);
+						c->UpdateDenotations(instances, &allObjectsIdx);
+						c->SetPreops(preops);
+						c->SimplifyDenotations();
 						rootConcepts.push_back(c);
 					} else if (i == 1) {
 						RoleNode* r = new RoleNode(field);
+						r->UpdateDenotations(instances, &allObjectsIdx);
+						r->SetPreops(preops);
+						r->SimplifyDenotations();
 						rootRoles.push_back(r);
 						r = new RoleNode(field);
 						r->IsGoal(true);
+						r->UpdateDenotations(instances, &allObjectsIdx);
+						r->SetPreops(preops);
+						r->SimplifyDenotations();
 						rootRoles.push_back(r);
 					}
 				}
 			} else {
 				if (i % 2 == 0) {
 					ex = contruct_concept(line);
+					features.push_back(ex);
 				} else {
 					binDenots.push_back(line);
 				}
@@ -418,16 +455,28 @@ void read_policy() {
 	//cout << "I:" << i << "J:" << binDenots.size();
 	cout << endl;
 
-	for (i = 0; i < binDenots.size(); ++i) {
-		cout << binDenots[i] << endl;
-	}
+//	for (i = 0; i < binDenots.size(); ++i) {
+//		cout << binDenots[i] << endl;
+//	}
 }
 
 int test() {
 	int covered = 0;
-	for (int i = 0; i < rootConcepts.size(); ++i) {
-		cout << rootConcepts[i]->GetSignature();
+	int correctly_covered = 0;
+	cout << "TEST" << endl;
+	for (unsigned j = 0; j < allStates.size(); ++j) {
+		string tmp;
+		for (unsigned i = 0; i < features.size(); ++i) {
+			tmp += features[i]->GetSignature()[j];
+		}
+		if (policy.find(tmp) != policy.end()) {
+			++covered;
+			if (allStates[j].GetAction().compare(actions[policy[tmp]]) == 0)
+				++correctly_covered;
+		}
 	}
+
+	cout << "Correctly covered: " << correctly_covered << endl;
 	return covered;
 }
 
@@ -440,10 +489,11 @@ int main(int argc, char** argv) {
 	preops = new PreOps(allObjects.size());
 	aDenot = new ActionDenotations(&instances, &actions);
 	read_policy();
+	get_all_states();
 	float t0, tf;
 	t0 = time_used();
 	//printout();
-	test();
+	cout << "Covered: " << test() << " of " << allStates.size();
 	tf = time_used();
 	cout << endl << "Total time: ";
 	report_interval(t0, tf, cout);

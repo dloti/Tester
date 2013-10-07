@@ -452,8 +452,10 @@ void read_policy() {
 		tmp.clear();
 		++i;
 	}
+	if(i!=binDenots[0].size())
+		cout<<"ERR: wrong action file!"<<i<<":"<<(binDenots[0].size()-1)<<endl;
 	//cout << "I:" << i << "J:" << binDenots.size();
-	cout << endl;
+	//cout << endl;
 
 //	for (i = 0; i < binDenots.size(); ++i) {
 //		cout << binDenots[i] << endl;

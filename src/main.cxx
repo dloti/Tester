@@ -452,8 +452,9 @@ void read_policy() {
 		tmp.clear();
 		++i;
 	}
-	if(i!=binDenots[0].size())
-		cout<<"ERR: wrong action file!"<<i<<":"<<(binDenots[0].size()-1)<<endl;
+	if (i != binDenots[0].size())
+		cout << "ERR: wrong action file!" << i << ":"
+				<< (binDenots[0].size() - 1) << endl;
 	//cout << "I:" << i << "J:" << binDenots.size();
 	//cout << endl;
 
@@ -471,6 +472,7 @@ int test() {
 		for (unsigned i = 0; i < features.size(); ++i) {
 			tmp += features[i]->GetSignature()[j];
 		}
+		cout << tmp <<endl;
 		if (policy.find(tmp) != policy.end()) {
 			++covered;
 			if (allStates[j].GetAction().compare(actions[policy[tmp]]) == 0)

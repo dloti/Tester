@@ -472,11 +472,13 @@ int test() {
 		for (unsigned i = 0; i < features.size(); ++i) {
 			tmp += features[i]->GetSignature()[j];
 		}
-		cout << tmp <<endl;
 		if (policy.find(tmp) != policy.end()) {
 			++covered;
 			if (allStates[j].GetAction().compare(actions[policy[tmp]]) == 0)
 				++correctly_covered;
+		}
+		else{
+			//cout<<"Missed: "<<tmp<<endl;
 		}
 	}
 
@@ -496,7 +498,7 @@ int main(int argc, char** argv) {
 	get_all_states();
 	float t0, tf;
 	t0 = time_used();
-	//printout();
+	printout();
 	cout << "Covered: " << test() << " of " << allStates.size();
 	tf = time_used();
 	cout << endl << "Total time: ";

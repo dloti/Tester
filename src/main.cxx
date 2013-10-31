@@ -30,6 +30,7 @@ using namespace expression;
 
 vector<Expression*> features;
 map<string, int> policy;
+vector<pair<string, int> > decisionList;
 vector<Expression*> rootConcepts;
 vector<Expression*> rootRoles;
 vector<string> primitiveConcepts;
@@ -60,8 +61,7 @@ void initialize_concepts() {
 }
 
 int get_obj_pos(string object) {
-	int pos = std::find(allObjects.begin(), allObjects.end(), object)
-			- allObjects.begin();
+	int pos = std::find(allObjects.begin(), allObjects.end(), object) - allObjects.begin();
 	if (pos >= allObjects.size()) {
 		cout << "ERR " << object << endl;
 		return -1;
@@ -122,8 +122,7 @@ void get_input() {
 							if (pos > -1)
 								conceptInterpretation.push_back(pos);
 						}
-						s.AddConceptInterpretation(cname,
-								conceptInterpretation);
+						s.AddConceptInterpretation(cname, conceptInterpretation);
 						conceptInterpretation.clear();
 					}
 				}
@@ -161,8 +160,7 @@ void get_input() {
 					}
 				}
 
-				if ((!fin.eof() && i < inst.GetNumActions()
-						&& getline(fin, line))) {
+				if ((!fin.eof() && i < inst.GetNumActions() && getline(fin, line))) {
 					istringstream iss(line);
 					getline(iss, field, ' ');
 					s.SetAction(field);
@@ -246,6 +244,10 @@ void printout() {
 	map<string, int>::iterator it;
 	for (it = policy.begin(); it != policy.end(); ++it)
 		cout << it->first << " " << it->second << endl;
+
+	cout << "DL" << endl;
+	for(int i=0;i<decisionList.size();++i)
+		cout<<decisionList[i].first<<" "<<decisionList[i].second<<endl;
 }
 
 void cleanup() {
@@ -371,15 +373,13 @@ Expression* contruct_concept(string line) {
 //		rootConcepts.push_back(ex);
 	} else if (line[0] == '.') {
 		vector<string> strv = splitline(line);
-		ex = new ValueRestriction(contruct_concept(strv[0]),
-				contruct_concept(strv[1]), preops);
+		ex = new ValueRestriction(contruct_concept(strv[0]), contruct_concept(strv[1]), preops);
 		ex->SetPreops(preops);
 		ex->SimplifyDenotations();
 		rootConcepts.push_back(ex);
 	} else if (line[0] == '=') {
 		vector<string> strv = splitline(line);
-		ex = new Equality(contruct_concept(strv[0]), contruct_concept(strv[1]),
-				preops);
+		ex = new Equality(contruct_concept(strv[0]), contruct_concept(strv[1]), preops);
 		ex->SetPreops(preops);
 		ex->SimplifyDenotations();
 		rootConcepts.push_back(ex);
@@ -453,8 +453,7 @@ void read_policy() {
 		++i;
 	}
 	if (i != binDenots[0].size())
-		cout << "ERR: wrong action file!" << i << ":"
-				<< (binDenots[0].size() - 1) << endl;
+		cout << "ERR: wrong action file!" << i << ":" << (binDenots[0].size() - 1) << endl;
 	//cout << "I:" << i << "J:" << binDenots.size();
 	//cout << endl;
 
@@ -463,7 +462,24 @@ void read_policy() {
 //	}
 }
 
-int test() {
+void read_decision_list() {
+	string line;
+	string action;
+	ifstream fin("decision_list.txt");
+	if (fin.is_open()) {
+
+		while (!fin.eof() && getline(fin, line)) {
+			getline(fin, action);
+			int action_num;
+			std::istringstream(action) >> action_num;
+			pair<string, int> p(line, action_num);
+			decisionList.push_back(p);
+		}
+	}
+	fin.close();
+}
+
+int test_policy() {
 	int covered = 0;
 	int correctly_covered = 0;
 	cout << "TEST" << endl;
@@ -476,9 +492,45 @@ int test() {
 			++covered;
 			if (allStates[j].GetAction().compare(actions[policy[tmp]]) == 0)
 				++correctly_covered;
-		}
-		else{
+		} else {
 			//cout<<"Missed: "<<tmp<<endl;
+		}
+	}
+
+	cout << "Correctly covered: " << correctly_covered << endl;
+	return covered;
+}
+
+bool isSignatureMatch(std::string signature, std::string signature1) {
+	for (int i = 0; i < signature.length(); ++i) {
+		if (signature[i] == signature1[i])
+			continue;
+		if (signature[i] == '*' || signature1[i] == '*')
+			continue;
+		if (signature[i] != signature1[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+int test_decision_list() {
+	int covered = 0;
+	int correctly_covered = 0;
+	cout << "DL TEST" << endl;
+	for (unsigned j = 0; j < allStates.size(); ++j) {
+		string tmp;
+		for (unsigned i = 0; i < features.size(); ++i) {
+			tmp += features[i]->GetSignature()[j];
+		}
+
+		for (int i = 0; i < decisionList.size(); ++i) {
+			if (isSignatureMatch(decisionList[i].first, tmp)) {
+				++covered;
+				if (allStates[j].GetAction().compare(actions[decisionList[i].second]) == 0)
+					++correctly_covered;
+				break;
+			}
 		}
 	}
 
@@ -495,11 +547,13 @@ int main(int argc, char** argv) {
 	preops = new PreOps(allObjects.size());
 	aDenot = new ActionDenotations(&instances, &actions);
 	read_policy();
+	read_decision_list();
 	get_all_states();
 	float t0, tf;
 	t0 = time_used();
 	printout();
-	cout << "Covered: " << test() << " of " << allStates.size();
+	cout << "Covered: " << test_policy() << " of " << allStates.size() << endl;
+	cout << "DL Covered: " << test_decision_list() << " of " << allStates.size();
 	tf = time_used();
 	cout << endl << "Total time: ";
 	report_interval(t0, tf, cout);
